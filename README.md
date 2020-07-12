@@ -1,5 +1,5 @@
 # MonkeySee
-前言：
+## 前言：
 
 某日看见老婆拿了一大摞发票在统计,忙的不亦乐乎,
 
@@ -10,7 +10,7 @@
 因此就有了这个软件的诞生背景...
 
 
-过程：
+## 过程：
 
 本人作为一名嵌入式工程师，对这种PC端的软件极为不擅长，
 
@@ -23,7 +23,7 @@
 如有需要，请自行申请.
 
 
-写给懂的人：
+## 写给懂的人：
 pyinstaller.exe -D main.py -w --name MonkeySee -i ico/monkey.ico
 
 pip install requests
