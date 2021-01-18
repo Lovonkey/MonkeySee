@@ -43,21 +43,18 @@ def fetch_token(client_id="", client_secret=""):
     try:
         f = urlopen(req, timeout=5)
         result_str = f.read()
+        if (IS_PY3):
+            result_str = result_str.decode()
+        result = json.loads(result_str)
+        if ('access_token' in result.keys() and 'scope' in result.keys()):
+            if not 'brain_all_scope' in result['scope'].split(' '):
+                print ('please ensure has check the ability')
+            return result['access_token']
+        else:
+            print ('please overwrite the correct API_KEY and SECRET_KEY')
     except URLError as err:
         print(err)
-    if (IS_PY3):
-        result_str = result_str.decode()
-
-    result = json.loads(result_str)
-
-    if ('access_token' in result.keys() and 'scope' in result.keys()):
-        if not 'brain_all_scope' in result['scope'].split(' '):
-            print ('please ensure has check the  ability')
-            exit()
-        return result['access_token']
-    else:
-        print ('please overwrite the correct API_KEY and SECRET_KEY')
-        exit()
+    return ""
 
 """ 读取文件 """
 def read_file(image_path):
@@ -73,10 +70,18 @@ def read_file(image_path):
             f.close()
 
 class ocr(object):
-    def __init__(self, API_KEY='', SECRET_KEY=''):
-        self.image_url = OCR_URL + "?access_token=" + fetch_token(client_id=API_KEY, client_secret=SECRET_KEY)
-        self.headers = {'content-type': 'application/x-www-form-urlencoded'}
+    def __init__(self):
         self.dict={"x":""}
+
+    def install(self, API_KEY='', SECRET_KEY=''):
+        s = fetch_token(client_id = API_KEY, client_secret = SECRET_KEY)
+        if not s == "":
+            self.image_url = OCR_URL + "?access_token=" + s
+            self.headers = {'content-type': 'application/x-www-form-urlencoded'}
+            return True
+
+        return False
+            
     def get(self, file=""):
         file_content =	 read_file(file)
         data = urlencode({'image': base64.b64encode(file_content)})

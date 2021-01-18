@@ -48,7 +48,7 @@ class invoice(object):
 		d = self.ws.cell(row = row, column = column, value = value)
 	
 	def fill_cell(self):
-		for i, key in enumerate(keys, 1):
+		for i, key in enumerate(keys[1:6], 1):
 			for j in range(4, auto_write_row):
 				d = self.ws.cell(row = j, column = i)
 				if d.value is None:
@@ -69,7 +69,7 @@ class invoice(object):
 		
 	def fix_dir(self, str="."):
 		shutil.move(self.filename, str)
-		self.filename = os.path.join(str,self.filename)
+		self.filename = os.path.join(str, os.path.basename(self.filename))
 
 if __name__ == '__main__':
     ws = invoice()

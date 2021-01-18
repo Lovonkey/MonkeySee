@@ -1,29 +1,49 @@
 import cv2
+import subprocess
+import os
+import time
+import psutil
 
-class app(object):
+class win_camera(object):
 	def __init__(self):
-		self.cap = None
-		for i in range(3,-1,-1):
-			cap = cv2.VideoCapture(i)
-			if cap.isOpened():
-				cap.set(3, 1920)
-				cap.set(4, 1080)
-				self.cap = cap
-				break
+		self.path_to_watch = "C:\\Users\\Lovon\\Pictures\\Camera Roll"
+		self.before = dict([(f, None) for f in os.listdir (self.path_to_watch)])
+		subprocess.Popen("start microsoft.windows.camera:", shell=True)
 
-	def isOpened(self):
-		if self.cap is None:
-			return False
-		else:
-			return True
-	
 	def capture(self):
-		if self.isOpened():
-			ret, frame = self.cap.read()
-			data = cv2.resize(frame, (960, 540))
-			return cv2.imencode('.png', data)[1].tobytes()
-		return None
+		fs = []
+		after = dict ([(f, None) for f in os.listdir (self.path_to_watch)])
+		added = [f for f in after if not f in self.before]
+		if added:
+			self.before = after
+			for i in added:
+				fs.append(os.path.join(self.path_to_watch, i))
+			return (";".join(fs), self.path_to_watch)
+		else:
+			return ("",self.path_to_watch)
 	
+	def is_running(self):
+		for i in  psutil.pids():
+			try:
+				p = psutil.Process(i)
+				if p.name() == "WindowsCamera.exe":
+					return True
+			except:
+				continue
+		return False
+
 	def close(self):
-		self.cap.release()
-		cv2.destroyAllWindows()
+		for i in  psutil.pids():
+			try:
+				p = psutil.Process(i)
+				if p.name() == "WindowsCamera.exe":
+					p.kill()
+					break
+			except:
+				continue
+
+if __name__ == '__main__':
+    ws = win_camera()
+    while True:
+        time.sleep(5)
+        print(ws.capture())

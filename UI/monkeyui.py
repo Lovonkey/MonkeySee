@@ -1,15 +1,13 @@
+from DuniangOCR import ocr
 from Capture import capture
 from File import f
 import PySimpleGUI as sg
 import cv2
 import time
 import os
+import urllib
 
-def windows_msg_update(windows=None, key = "MsgLog", str=""):
-	if not windows is None:
-		tmp,msg = windows.Read(timeout=0)
-		s = msg[key] + str
-		windows.FindElement(key).Update(s)
+ConfigKeys = os.path.join(os.getcwd(), "Conf", "key.txt")
 
 def image_windows_show(outdir=""):
 	image = [
@@ -27,103 +25,172 @@ def image_windows_show(outdir=""):
 
 class MainWindow(object):
 	def __init__(self):
-		MainWin = [
-			[sg.Text('作业内容',auto_size_text=True)],
-			[sg.Radio('发票', group_id=1, key='发票', default=True), sg.Radio('合同', group_id=1,key='合同'), sg.Radio('其他', group_id=1, key='其他')], 
-			[sg.Text('作业方式', auto_size_text=True)],
-			[sg.Radio('文件', group_id=2, key='文件', default=True), sg.Radio('摄像头', group_id=2, key='摄像头')], 
-			[sg.OK('开始', size=(10, 2)), sg.OK('保存', size=(10, 2))],
-			[sg.Multiline(size=(1280, 720), key='MsgLog', autoscroll = True, border_width = 2, font='Song 12')]
+		ocr = [
+				[sg.Text("-" * 90)],
+				[sg.Text("BaiDu OCR")],
+				[sg.Text("API_KEY:", size=(12,1)), sg.Input(size=(30,1), key='API_KEY', default_text="", font='Song 10')],
+				[sg.Text("SECRET_KEY:", size=(12,1)), sg.Input(size=(30,1), key='SECRET_KEY', default_text="", font='Song 10')]
+			]
+
+		inv = [
+				[sg.Text("-" * 90)],
+				[sg.Text("发票信息选择")],
+				[sg.Checkbox("收票公司", size=(7,1)), 	sg.Checkbox("发票日期", size=(7,1)), sg.Checkbox("发票号码", size=(7,1)),sg.Checkbox("发票代码", size=(7,1))],
+				[sg.Checkbox("单位名称", size=(7,1)),	sg.Checkbox("货物名称", size=(7,1)), sg.Checkbox("规格型号", size=(7,1)), sg.Checkbox("单位", size=(7,1))],
+				[sg.Checkbox("数量", size=(7,1)),		sg.Checkbox("单价", size=(7,1)), sg.Checkbox("金额", size=(7,1)), sg.Checkbox("税率", size=(7,1))],
+				[sg.Checkbox("税额", size=(7,1)),sg.Checkbox("备注", size=(7,1)),sg.Checkbox("销售方地址及电话")],
+			]
+		
+		cam = [
+				[sg.Text("-" * 90)],
+				[sg.Radio('文件', group_id=2, key='文件', default=True), sg.Radio('摄像头', group_id=2, key='摄像头')],
+			]
+		
+		input = [
+				[sg.Text("-" * 90)],
+				[sg.Button("开始", size=(7,1)), sg.Button("结束", size=(7,1), disabled  = True), sg.Button("保存", size=(7,1))],
+			]
+
+		output = [
+				[sg.Text("-" * 90)],
+				[sg.Text(('选择文件输出路径(默认路径:%s)' % ""))],
+				[sg.Input(key='_DIR_', default_text="", size=(30,1)),sg.FolderBrowse()],
 		]
 
-		self.form = sg.FlexForm('猴子读图',size=(1280, 720))
-		self.form.Layout(MainWin)
-		self.cap = None
+		RightWin = [
+			[sg.Frame(title="♥ OCR ♥", layout = ocr)],
+			[sg.Frame(title="♥ 发票 ♥", layout = inv)],
+			[sg.Frame(title="♥ 功能选择 ♥", layout = cam)],
+			[sg.Frame(title="♥ input ♥", layout = input)],
+			[sg.Frame(title="♥ output ♥", layout = output)],
+		]
+		
+		MsgLog = [
+			[sg.Multiline(key='MsgLog', autoscroll = True, border_width = 2, font='Song 12', size=(96, 36))],
+			[sg.Button("清除", size=(7,1))]
+		]
+		
+		LeftWin = [
+			[sg.Frame(title="♥ MsgLog ♥", layout = MsgLog)],
+		]
+
+		MainWin = [
+			[sg.Column(LeftWin), sg.Column(RightWin)],
+		]
+		
+
+		self.form = sg.Window('{} {}'.format("Monkey Tool", "v1.1"), MainWin)
+		self.camera = None
+		self.ocr = None
 
 	def get_images(self, outdir=""):
-		if self.cap is None:
-			self.cap = capture.app()
-
-		event,values = self.form.Read()
+		event,values = self.form.Read(timeout = 5000)
 		if event == None:
 			self.form.close()
 			return ("close",None)
 
-		if event == "开始":
-			s = values["MsgLog"] + ("[INFO] >>> <开始>按钮被选择 ...") 
+		if values['_DIR_'] != outdir:
+			self.form.FindElement('_DIR_').Update(value = outdir)
+
+		if event == "清除":
+			self.form.FindElement('MsgLog').Update("")
+			return ("image", None)
+
+		if event == "__TIMEOUT__":
+			if self.camera:
+				if not self.camera.is_running():
+					self.form.FindElement('结束').Click()
+				else:
+					images,dir = self.camera.capture()
+					if images == "":
+						s = values['MsgLog'] + "[WARN] >>> 请拍摄照片...\n"
+						self.form.FindElement('MsgLog').Update(s)
+					else:
+						return ("image", images + "&&" + values['_DIR_'])
+			return ("image", None)
+		elif event == "结束" and self.camera:
+			self.form.FindElement('开始').Update(disabled  = False)
+			self.form.FindElement('结束').Update(disabled  = True)
+			self.camera.close()
+			images,dir = self.camera.capture()
+			self.camera = None
+			if images == "":
+				return ("image", None)
+			else:
+				return ("image", images + "&&" + values['_DIR_'])
+		elif event == "开始":
+			s = values["MsgLog"] + ("[INFO] >>> <开始>按钮被选择 ...\n") 
 			self.form.FindElement('MsgLog').Update(s)
-	
-			if values['合同'] or values['其他']:
-				s = values["MsgLog"] + ("[WARN] >>>当前仅支持对发票进行操作..., 请使用正确方式")
-				self.form.FindElement('MsgLog').Update(s)
-				return ("image",None)
-	
 			if values['文件']:
-				images,dir = image_windows_show(outdir)
+				images,dir = image_windows_show(values['_DIR_'])
 				if images == "" or images is None:
-					s = s + ("\n[WARN] >>> 未选择任何文件... 请选择")
+					s = s + "[WARN] >>> 未选择任何文件... 请选择\n"
 					self.form.FindElement('MsgLog').Update(s)
 					return ("image",None)
 				else:
 					return ("image", images + "&&" + dir)
 			elif values['摄像头']:
-				images,dir = self.video_windows_show(outdir, self.form)
-				if images == "" or images is None:
-					s = s + ("\n[WARN] >>> 未选择任何文件... 请选择")
-					self.form.FindElement('MsgLog').Update(s)
+				self.form.FindElement('开始').Update(disabled  = True)
+				self.form.FindElement('结束').Update(disabled  = False)
+				if self.camera is None:
+					self.camera = capture.win_camera()
+				images,dir = self.camera.capture()
+				if images == "":
 					return ("image",None)
 				else:
-					return ("image", images + "&&" + dir)
-			
+					return ("image", images + "&&" + values['_DIR_'])
 		elif event == "保存":
 			return ("save", None)
 		else:
-			return ("def", None)
-		
+			return ("save", None)
+	
+	def API_KEY(self):
+		event,values = self.form.Read(timeout = 0)
+		return values['API_KEY']
+	
+	def SECRET_KEY(self):
+		event,values = self.form.Read(timeout = 0)
+		return values['SECRET_KEY']
+	
+	def ocr(file=""):
+		return self.ocr.get(file)
+
 	def update_msg(self, str=""):
-		windows_msg_update(windows=self.form, str=str)
+		event,values = self.form.Read(timeout = 0)
+		self.form.FindElement('MsgLog').Update(values['MsgLog'] + str)
 
-	def video_windows_show(self, outdir="", windows=None):
-		index = 0
-		files = None
-		file = f.get_tmp_file(outdir, index)
-		
-		cap = self.cap 
-		if not cap.isOpened():
-			sg.popup(">>没有发现摄像头<<",font=("size",15))
-			return (None, None)
-
-		data=cap.capture()
-		f.save(data, file)
-			
-		video = [
-			[sg.Text(('选择文件输出路径(默认路径:%s)' % outdir))],
-			[sg.Input(key='_DIR_', default_text=outdir),sg.FolderBrowse()],
-			[sg.Image(filename=file, key='image')],
-			[sg.OK('抓图', size=(15, 2)), sg.OK('完成', size=(15, 2))],
-		]
-	
-		form = sg.FlexForm('猴子抓图')
-		form.Layout(video)
+	def connect(self):
 		while True:
-			event,values = form.Read(timeout=10)
-			data = cap.capture()
-			form['image'](data=data)
-			if event == "抓图":
-				index += 1
-				file = f.get_tmp_file(outdir, index)
-				if files is None:
-					files = file
-				else:
-					files = files + ";" + file
-				f.save(data, file)
-				windows_msg_update(windows=windows, str=("[INFO] >>> 图片<%s>抓取成功" % file))
-			elif event == "完成" or event == None:
-				break
-	
-		form.close()
+			event,values = self.form.Read(timeout = 2000)
+			if os.path.isfile(ConfigKeys):
+				f = open(ConfigKeys)
+				local_API_KEY = f.readline().replace("\n","")
+				local_SECRET_KEY = f.readline().replace("\n","")
+				f.close()
+				if local_API_KEY and local_SECRET_KEY:
+					self.form.FindElement('API_KEY').Update(value=local_API_KEY)
+					self.form.FindElement('SECRET_KEY').Update(value=local_SECRET_KEY)
+			try:
+				urllib.request.urlopen('https://www.baidu.com')
+			except:
+				self.form.FindElement('MsgLog').Update(values['MsgLog'] + "[ERROR] >>> 请检查你的网络 ...\n")
+				continue
 
-		if not values is None:
-			return (files, values["_DIR_"])
-		else:
-			return (None, None)
+			local_API_KEY = self.API_KEY()
+			local_SECRET_KEY = self.SECRET_KEY()
+			if not (local_API_KEY.isalnum() and local_SECRET_KEY.isalnum()):
+				self.form.FindElement('MsgLog').Update(values['MsgLog'] + "[ERROR] >>> 请输入正确的KEY ...\n")
+				continue
+			else:
+				tocr = ocr.ocr()
+				if not tocr.install(API_KEY=local_API_KEY, SECRET_KEY=local_SECRET_KEY):
+					self.form.FindElement('MsgLog').Update(values["MsgLog"] + "[ERROR] >>> OCR 连接失败 ...\n")
+					continue
+				else:
+					self.ocr = tocr
+					f = open(ConfigKeys,'w+',encoding='utf-8')
+					f.write(local_API_KEY + "\n")
+					f.write(local_SECRET_KEY + "\n")
+					f.close()
+					self.form.FindElement('MsgLog').Update(values["MsgLog"] + "[INFO] >>> OCR 连接成功 ...\n")
+					break

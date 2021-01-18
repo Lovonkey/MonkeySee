@@ -6,15 +6,14 @@ from File import f
 import time
 import os
 
-API_KEY = ''
-SECRET_KEY = ''
-
+#ydYHklBZz9jeDUTN8yZCdZo7
+#maTlUB60yXfE1drUSA0mvvxpf7R4xAHI
 if __name__ == '__main__':
-	ocr = ocr.ocr(API_KEY=API_KEY, SECRET_KEY=SECRET_KEY)
+	win = monkeyui.MainWindow()
 	execl = invoice.invoice()
 	keys = execl.get_keys()
-	win = monkeyui.MainWindow()
-
+	win.connect()
+	
 	while True:
 		file = execl.get_file_name()
 		outdir="\\".join(file.split("\\")[0:-1])
@@ -32,7 +31,6 @@ if __name__ == '__main__':
 
 			files = images.split("&&")[0]
 			dir = images.split("&&")[1]
-			
 			if (os.path.exists(dir)):
 				if (outdir != dir):
 					execl.fix_dir(dir)
@@ -46,7 +44,7 @@ if __name__ == '__main__':
 					win.update_msg(("[INFO] >>> 转换<%s> --> <%s> 成功 ...") % (f.realname(file), f.realname(nfiles)))
 
 				for nfile in nfiles.split(";"):
-					ret, words_result = ocr.get(nfile)
+					ret, words_result = win.ocr.get(nfile)
 					if ret == "success":
 						row = execl.get_auto_write_row()
 						for i, key in enumerate(keys, 1):
